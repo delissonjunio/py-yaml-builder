@@ -17,4 +17,4 @@ def main():
 
     result = yaml.load(args.root, Loader=ComposeLoader)
 
-    print(yaml.dump(result))
+    print(yaml.dump(result, default_flow_style=False))

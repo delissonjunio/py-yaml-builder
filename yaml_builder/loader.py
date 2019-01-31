@@ -2,6 +2,10 @@ from io import IOBase
 import os
 import yaml
 
+AWS_CLOUDFORMATION_BUILTINS = [
+    'Ref', 'Base64', 'Cidr', 'FindInMap', 'GetAtt', 'GetAZs', 'ImportValue', 'Join',
+    'Select', 'Split', 'Sub', 'Transform', 'And', 'Equals', 'If', 'Not', 'Or'
+]
 
 class ComposeLoader(yaml.Loader):
     def __init__(self, *args, **kwargs):
@@ -10,6 +14,9 @@ class ComposeLoader(yaml.Loader):
         self.add_constructor('!include', self._include)
         self.add_constructor('!import', self._include)
         self.add_constructor('!env', self._env_var)
+
+        for cloudformation_builtin in AWS_CLOUDFORMATION_BUILTINS:
+            self.add_constructor('!' + cloudformation_builtin, self._cloudformation_builtin)
 
         if 'root' in kwargs:
             self._root = kwargs['root']
@@ -26,6 +33,19 @@ class ComposeLoader(yaml.Loader):
     def _env_var(self, loader, node):
         env_var = loader.construct_scalar(node)
         return os.getenv(env_var)
+
+    def _cloudformation_builtin(self, loader, node):
+        if isinstance(node, yaml.ScalarNode):
+            value = loader.construct_scalar(node).encode('utf-8')
+        elif isinstance(node, yaml.SequenceNode):
+            value = loader.construct_sequence(node)
+        elif isinstance(node, yaml.MappingNode):
+            value = loader.construct_mapping(node)
+        else:
+            raise yaml.YAMLError('Unknown node type for {}'.format(node.tag))
+
+        full_function_name = str(node.tag.replace('!', 'Fn::'))
+        return {full_function_name: value}
 
     def _include(self, loader, node):
 
